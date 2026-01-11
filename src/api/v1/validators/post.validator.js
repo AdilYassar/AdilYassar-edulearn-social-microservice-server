@@ -9,8 +9,10 @@ const schemas = {
         text: Joi.string().allow(''),
         media: Joi.array().items(Joi.object({
             mediaId: Joi.string().required(),
+            url: Joi.string().required(), // Added URL
             type: Joi.string().valid('image', 'video', 'document').required(),
-            thumbnail: Joi.string().optional()
+            thumbnail: Joi.string().optional(),
+            thumbnailUrl: Joi.string().optional()
         })),
         progress: Joi.object().optional(),
         question: Joi.object().optional()

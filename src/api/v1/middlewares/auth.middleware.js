@@ -18,16 +18,27 @@ exports.authenticate = async (req, res, next) => {
     // Verify token using SAME secret as Quiz Server
     const decoded = jwt.verify(token, config.jwt.secret);
 
+    // DEBUG: Log the decoded payload to see what's actually coming from the Quiz Server
+    logger.debug('Decoded JWT payload:', decoded);
+
+    // Some systems use 'id', some use 'uuid', some use 'sub', some 'userUuid'
+    const userUuid = decoded.uuid || decoded.id || decoded.sub || decoded.userUuid;
+
+    if (!userUuid) {
+        logger.error('Token payload missing user identifier (uuid/id/sub):', decoded);
+        return res.status(401).json({ error: 'Token payload missing user identifier' });
+    }
+
     // Find user in social DB
-    let user = await User.findOne({ quizServerUUID: decoded.uuid });
+    let user = await User.findOne({ quizServerUUID: userUuid });
 
     if (!user) {
       // Create social profile on first access (Lazy Sync)
       try {
           user = await User.create({
-            quizServerUUID: decoded.uuid,
-            userType: decoded.type || 'student',
-            name: decoded.name || 'User',
+            quizServerUUID: userUuid,
+            userType: (decoded.type || decoded.role || 'student').toLowerCase(),
+            name: decoded.name || decoded.username || 'User',
             socialSettings: {
               privacy: {
                 profileVisibility: 'friends',
@@ -43,10 +54,10 @@ exports.authenticate = async (req, res, next) => {
               }
             }
           });
-          logger.info(`Initialized social profile for: ${decoded.uuid}`);
+          logger.info(`Initialized social profile for: ${userUuid}`);
       } catch (err) {
-          logger.warn(`Could not auto-create user (might exist): ${err.message}`);
-          user = await User.findOne({ quizServerUUID: decoded.uuid });
+          logger.warn(`Could not auto-create user: ${err.message}`);
+          user = await User.findOne({ quizServerUUID: userUuid });
       }
     }
 

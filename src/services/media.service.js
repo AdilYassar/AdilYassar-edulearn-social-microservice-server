@@ -4,8 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
-// Store refresh token in config/env
-// Using provided credentials
 const CLIENT_ID = config.googleDrive.clientId;
 const CLIENT_SECRET = config.googleDrive.clientSecret;
 const REDIRECT_URI = config.googleDrive.redirectUri;
@@ -29,14 +27,6 @@ class MediaService {
         this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
     }
 
-    /**
-     * Upload a file to Google Drive
-     * This implementation assumes the file is temporarily saved on the server disk by multer.
-     * In a robust microservice, you might stream directly or generating a signed upload URL 
-     * (but GDrive API doesn't support pre-signed PUT URLs like S3 easily for public).
-     * 
-     * Standard flow: Client POSTs file -> Server uploads to GDrive -> Server returns ID.
-     */
     async uploadFile(filePath, fileName, mimeType) {
         try {
             const fileMetadata = {
@@ -49,35 +39,62 @@ class MediaService {
                 body: fs.createReadStream(filePath)
             };
 
+            // 1. Upload the file
             const response = await this.drive.files.create({
                 resource: fileMetadata,
                 media: media,
                 fields: 'id, webContentLink, webViewLink, thumbnailLink'
             });
 
-            // Make file publicly readable (optional, depends on privacy)
-            // await this.drive.permissions.create({
-            //     fileId: response.data.id,
-            //     requestBody: {
-            //         role: 'reader',
-            //         type: 'anyone'
-            //     }
-            // });
+            const fileId = response.data.id;
+
+            // 2. Make the file public (Required for direct URL access)
+            await this.drive.permissions.create({
+                fileId: fileId,
+                requestBody: {
+                    role: 'reader',
+                    type: 'anyone'
+                }
+            });
+
+            // 3. Construct the Direct Direct Link for React Native
+            // For videos, use the direct 'uc' format as requested
+            let directUrl = response.data.webViewLink;
+            if (mimeType.startsWith('video/') || mimeType.startsWith('image/') || mimeType.startsWith('audio/')) {
+                directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            }
 
             return {
-                id: response.data.id,
-                url: response.data.webViewLink,
+                id: fileId,
+                url: directUrl,
                 downloadUrl: response.data.webContentLink,
-                thumbnail: response.data.thumbnailLink
+                thumbnail: response.data.thumbnailLink,
+                mimeType: mimeType
             };
         } catch (error) {
-            logger.error(`Google Drive upload failed: ${error.message}`);
-            throw new Error('File upload failed');
+            logger.error(`Google Drive upload failed:`, error);
+            throw new Error(`Google Drive API error: ${error.message}`);
         } finally {
-            // Cleanup temp file
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
             }
+        }
+    }
+
+    async getFileUrl(fileId) {
+        try {
+            const response = await this.drive.files.get({
+                fileId,
+                fields: 'webViewLink, mimeType'
+            });
+            
+            if (response.data.mimeType.startsWith('video/')) {
+                return `https://drive.google.com/uc?export=view&id=${fileId}`;
+            }
+            return response.data.webViewLink;
+        } catch (error) {
+            logger.error(`Failed to get file URL: ${error.message}`);
+            throw error;
         }
     }
 
@@ -89,15 +106,6 @@ class MediaService {
             logger.error(`Google Drive delete failed: ${error.message}`);
             return false;
         }
-    }
-
-    // Helper for generating auth url if refresh token needs to be obtained manually only once
-    getAuthUrl() {
-        const scopes = ['https://www.googleapis.com/auth/drive.file'];
-        return this.oauth2Client.generateAuthUrl({
-            access_type: 'offline',
-            scope: scopes
-        });
     }
 }
 

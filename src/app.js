@@ -8,6 +8,10 @@ const logger = require('./utils/logger'); // Assuming you want to use the logger
 const errorMiddleware = require('./api/v1/middlewares/error.middleware');
 
 const app = express();
+const path = require('path');
+
+// Static Files (for testing)
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Security Middleware
 app.use(helmet());

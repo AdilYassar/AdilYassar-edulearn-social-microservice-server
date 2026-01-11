@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Microservice Media Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #38bdf8;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #94a3b8;
+        }
+
+        input[type="text"],
+        input[type="file"],
+        select {
+            width: 100%;
+            padding: 0.75rem;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 0.5rem;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0284c7;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #0369a1;
+        }
+
+        #result {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #0f172a;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+
+        .status {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .success {
+            color: #4ade80;
+        }
+
+        .error {
+            color: #f87171;
+        }
+
+        .loading {
+            color: #fbbf24;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Media Upload Test</h1>
+        <p style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 1.5rem;">
+            Test Google Drive integration for Images, Audio, Video, and Docs.
+        </p>
+
+        <div class="form-group">
+            <label for="token">JWT Token (Bearer)</label>
+            <input type="text" id="token" placeholder="Paste your access token here...">
+        </div>
+
+        <div class="form-group">
+            <label for="file">Select File</label>
+            <input type="file" id="file">
+        </div>
+
+        <button id="uploadBtn">Upload to Google Drive</button>
+
+        <div id="status" class="status"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const uploadBtn = document.getElementById('uploadBtn');
+        const tokenInput = document.getElementById('token');
+        const fileInput = document.getElementById('file');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+
+        // Try to load token from localStorage
+        tokenInput.value = localStorage.getItem('test_token') || '';
+
+        uploadBtn.addEventListener('click', async () => {
+            const token = tokenInput.value;
+            const file = fileInput.files[0];
+
+            if (!token) {
+                showStatus('Missing token!', 'error');
+                return;
+            }
+            if (!file) {
+                showStatus('Please select a file!', 'error');
+                return;
+            }
+
+            // Save token for convenience
+            localStorage.setItem('test_token', token);
+
+            showStatus('Uploading...', 'loading');
+            resultDiv.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/v1/media/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showStatus('Upload Successful! ✅', 'success');
+                    resultDiv.innerHTML = JSON.stringify(data.data || data, null, 2);
+                    resultDiv.style.display = 'block';
+                } else {
+                    showStatus(`Upload Failed (${response.status}): ${data.message || data.error || 'Unknown error'}`, 'error');
+                    resultDiv.innerHTML = JSON.stringify(data, null, 2);
+                    resultDiv.style.display = 'block';
+                }
+            } catch (err) {
+                showStatus(`Connection Error: ${err.message}`, 'error');
+            }
+        });
+
+        function showStatus(msg, type) {
+            statusDiv.textContent = msg;
+            statusDiv.className = `status ${type}`;
+        }
+    </script>
+</body>
+
+</html>

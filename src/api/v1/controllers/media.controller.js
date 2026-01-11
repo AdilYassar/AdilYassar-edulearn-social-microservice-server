@@ -14,6 +14,7 @@ exports.uploadFile = async (req, res) => {
 
         res.status(201).json({ status: 'success', data: result });
     } catch (error) {
+        require('../../../utils/logger').error('Upload Controller Error:', error);
         res.status(500).json({ status: 'error', message: error.message });
     }
 };

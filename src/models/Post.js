@@ -11,8 +11,14 @@ const postSchema = new mongoose.Schema({
     // Media attachments
     media: [{
       mediaId: { type: String },         // Google Drive file ID
+      url: { type: String },             // Direct access URL
+      fileName: { type: String },
+      fileSize: { type: Number },
+      mimeType: { type: String },
+      duration: { type: Number },          // For voice notes (seconds)
       type: { type: String, enum: ['image', 'video', 'document'] },
       thumbnail: { type: String },       // Google Drive file ID
+      thumbnailUrl: { type: String },    // Direct thumbnail URL
       caption: { type: String }
     }],
     

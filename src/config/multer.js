@@ -2,9 +2,8 @@ const multer = require('multer');
 const path = require('path');
 const logger = require('../utils/logger');
 const config = require('./index');
-
-// Ensure tmp directory exists
 const fs = require('fs');
+
 const uploadDir = 'tmp/uploads';
 if (!fs.existsSync(uploadDir)){
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -15,26 +14,29 @@ const storage = multer.diskStorage({
         cb(null, uploadDir)
     },
     filename: function (req, file, cb) {
-        // Unique filename: fieldname + timestamp + random + extension
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
 const fileFilter = (req, file, cb) => {
-    // Basic filter, detailed MIME check in config/env in real app
-    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'application/pdf', 'audio/mpeg'];
+    const allowed = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
+        'video/mp4', 'video/quicktime', 'application/pdf', 
+        'audio/mpeg', 'audio/mp3', 'audio/wav', 'text/plain',
+        'application/octet-stream' // Fallback for some browsers
+    ];
     if (allowed.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('Invalid file type'), false);
+        cb(new Error(`Invalid file type: ${file.mimetype}`), false);
     }
 };
 
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: config.upload?.maxFileSize || 100 * 1024 * 1024 // 100MB default
+        fileSize: config.fileUpload?.maxSize || 100 * 1024 * 1024
     },
     fileFilter: fileFilter
 });

@@ -15,11 +15,13 @@ const messageSchema = new mongoose.Schema({
     
     // For media messages
     mediaId: { type: String },           // Google Drive file ID
+    url: { type: String },               // Direct access URL
     fileName: { type: String },
     fileSize: { type: Number },
     mimeType: { type: String },
     duration: { type: Number },          // For voice notes (seconds)
     thumbnail: { type: String },         // Google Drive file ID for thumbnails
+    thumbnailUrl: { type: String },      // Direct thumbnail URL
     
     // For location sharing
     location: {

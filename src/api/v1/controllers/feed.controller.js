@@ -28,7 +28,7 @@ exports.createPost = async (req, res) => {
 
 exports.likePost = async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { id: postId } = req.params;
         const result = await feedService.likePost(req.user.quizServerUUID, postId);
         res.status(200).json({ status: 'success', data: result });
     } catch (error) {
@@ -38,7 +38,7 @@ exports.likePost = async (req, res) => {
 
 exports.commentOnPost = async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { id: postId } = req.params;
         const { content } = req.body;
         const comment = await feedService.addComment(req.user.quizServerUUID, postId, content);
         res.status(201).json({ status: 'success', data: comment });
@@ -49,7 +49,7 @@ exports.commentOnPost = async (req, res) => {
 
 exports.getPost = async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { id: postId } = req.params;
         const post = await feedService.getPost(postId);
         res.status(200).json({ status: 'success', data: post });
     } catch (error) {
@@ -59,7 +59,7 @@ exports.getPost = async (req, res) => {
 
 exports.updatePost = async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { id: postId } = req.params;
         const { content } = req.body;
         const post = await feedService.updatePost(req.user.quizServerUUID, postId, content);
         res.status(200).json({ status: 'success', data: post });
@@ -70,7 +70,7 @@ exports.updatePost = async (req, res) => {
 
 exports.deletePost = async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { id: postId } = req.params;
         await feedService.deletePost(req.user.quizServerUUID, postId);
         res.status(200).json({ status: 'success', message: 'Post deleted' });
     } catch (error) {
@@ -80,7 +80,7 @@ exports.deletePost = async (req, res) => {
 
 exports.getComments = async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { id: postId } = req.params;
         const { page } = req.query;
         const comments = await feedService.getComments(postId, parseInt(page));
         res.status(200).json({ status: 'success', data: comments });

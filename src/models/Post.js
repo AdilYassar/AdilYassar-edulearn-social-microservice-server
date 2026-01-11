@@ -1,0 +1,81 @@
+const mongoose = require('mongoose');
+
+const postSchema = new mongoose.Schema({
+  authorUUID: { type: String, required: true, index: true },
+  
+  // Post type and content
+  type: { type: String, enum: ['progress', 'question', 'achievement', 'general'], default: 'general' },
+  content: {
+    text: { type: String },
+    
+    // Media attachments
+    media: [{
+      mediaId: { type: String },         // Google Drive file ID
+      type: { type: String, enum: ['image', 'video', 'document'] },
+      thumbnail: { type: String },       // Google Drive file ID
+      caption: { type: String }
+    }],
+    
+    // For progress updates (linked to Quiz Server data)
+    progress: {
+      type: { type: String },            // "course_completed", "quiz_passed", "streak"
+      courseId: { type: String },        // From Quiz Server
+      courseName: { type: String },
+      quizId: { type: String },          // From Quiz Server
+      quizName: { type: String },
+      score: { type: Number },
+      grade: { type: String },           // A+, A, B+, etc.
+      milestone: { type: String },
+      achievement: { type: String }
+    },
+    
+    // For question posts
+    question: {
+      title: { type: String },
+      category: { type: String },        // Subject area
+      tags: [{ type: String }],
+      courseId: { type: String },        // Optional link to course
+      isAnswered: { type: Boolean, default: false },
+      acceptedAnswerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }
+    }
+  },
+  
+  // Post visibility
+  visibility: { type: String, enum: ['public', 'friends', 'course_mates'], default: 'public' },
+  courseId: { type: String, index: true },            // If visible only to course enrollees
+  
+  // Engagement tracking
+  stats: {
+    likes: { type: Number, default: 0 },
+    comments: { type: Number, default: 0 },
+    shares: { type: Number, default: 0 },
+    views: { type: Number, default: 0 }
+  },
+  
+  // Social features
+  mentions: [{ type: String }],          // UUIDs of tagged users
+  hashtags: [{ type: String, index: true }],
+  
+  // Post status
+  isPinned: { type: Boolean, default: false },
+  isModerated: { type: Boolean, default: false },
+  moderationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
+  moderatedByUUID: { type: String },
+  moderatedAt: { type: Date },
+  moderationReason: { type: String },
+  
+  // Edit/Delete
+  isEdited: { type: Boolean, default: false },
+  editedAt: { type: Date },
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date },
+}, { 
+  timestamps: true 
+});
+
+postSchema.index({ authorUUID: 1, createdAt: -1 });
+postSchema.index({ visibility: 1, createdAt: -1 });
+postSchema.index({ type: 1, createdAt: -1 });
+postSchema.index({ moderationStatus: 1 });
+
+module.exports = mongoose.model('Post', postSchema);

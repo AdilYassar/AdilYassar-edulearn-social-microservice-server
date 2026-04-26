@@ -4,15 +4,15 @@ services:
   social-service:
     build: .
     ports:
-      - "3001:3001"
+      - "4001:4001"
     environment:
       - NODE_ENV=development
-      - PORT=3001
+      - PORT=4001
       - JWT_SECRET=${JWT_SECRET}
-      - QUIZ_SERVER_URL=http://host.docker.internal:3000
-      - MONGODB_URI=mongodb://mongo:27017/social_microservice
-      - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - QUIZ_SERVER_URL=https://romantic-nanete-adildevelopment-3ec66986.koyeb.app
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
     depends_on:
       - mongo
       - Redis

@@ -4,6 +4,7 @@ const config = require('./config');
 const connectDB = require('./config/database');
 const { connectRedis } = require('./config/redis');
 const { initSocket } = require('./socket');
+const { initFirebase } = require('./config/firebase');
 const logger = require('./utils/logger');
 const userSyncConsumer = require('./services/user-sync.consumer');
 const startQueueWorkers = require('./queues/workers');
@@ -16,18 +17,25 @@ const startServer = async () => {
     // 2. Connect to Redis
     await connectRedis();
 
-    // 3. Create HTTP Server
+    // 3. Initialize Firebase
+    initFirebase();
+
+    // 4. Create HTTP Server
     const server = http.createServer(app);
 
-    // 4. Initialize Socket.IO
+    // 5. Initialize Socket.IO
     initSocket(server);
 
-    // 5. Start Background Services
+    // 6. Start Background Services
     userSyncConsumer.start();
     startQueueWorkers();
 
-    // 6. Start Server with dynamic port finding
+    // 7. Start Server with dynamic port finding
     const net = require('net');
+    
+    logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    logger.info(`Starting server on PORT: ${config.port}`);
+    logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
     const findAvailablePort = (startPort) => {
         return new Promise((resolve, reject) => {
@@ -50,7 +58,12 @@ const startServer = async () => {
 
     findAvailablePort(config.port).then((availablePort) => {
         server.listen(availablePort, () => {
-             logger.info(`Social Microservice running in ${config.env} mode on port ${availablePort}`);
+             logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+             logger.info(`✅ Social Microservice is RUNNING`);
+             logger.info(`   Environment: ${config.env}`);
+             logger.info(`   PORT: ${availablePort}`);
+             logger.info(`   Access at: http://localhost:${availablePort}`);
+             logger.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         });
     }).catch((err) => {
         logger.error('Failed to find open port:', err);

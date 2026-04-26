@@ -15,6 +15,8 @@ const usersRoutes = require('./users.routes');
 const mediaRoutes = require('./media.routes');
 const groupsRoutes = require('./groups.routes');
 const messageRequestRoutes = require('./message-request.routes');
+const liveKitRoutes = require('./livekit.routes');
+const internalRoutes = require('./internal.routes');
 
 router.use('/auth', authRoutes);
 router.use('/friends', friendRoutes);
@@ -25,5 +27,7 @@ router.use('/users', usersRoutes);
 router.use('/media', mediaRoutes);
 router.use('/groups', groupsRoutes);
 router.use('/message-requests', messageRequestRoutes);
+router.use('/livekit', liveKitRoutes);
+router.use('/internal', internalRoutes);
 
 module.exports = router;

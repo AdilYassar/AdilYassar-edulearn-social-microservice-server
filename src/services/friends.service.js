@@ -1,5 +1,6 @@
 const friendshipRepository = require('../repositories/friendship.repository');
 const userRepository = require('../repositories/user.repository');
+const firebaseNotificationService = require('./firebase-notification.service');
 const logger = require('../utils/logger');
 
 class FriendService {
@@ -26,10 +27,26 @@ class FriendService {
        existing.requesterUUID = requesterUUID;
        existing.recipientUUID = recipientUUID;
        existing.message = message;
-       existing.requestedAt = new Date();
-       existing.respondedAt = undefined;
-       await friendshipRepository.save(existing);
-       return existing;
+        existing.requestedAt = new Date();
+        existing.respondedAt = undefined;
+        await friendshipRepository.save(existing);
+        
+        // Notify
+        const requester = await userRepository.findByUUID(requesterUUID);
+        const requesterName = (requester?.name && requester.name !== 'User') ? requester.name : 'A user';
+
+        firebaseNotificationService.sendToUser(recipientUUID, 'friend_request', {
+            title: 'New Friend Request',
+            body: `${requesterName} sent you a friend request`
+        }, { actorUUID: requesterUUID });
+
+        // Trigger Data Message for Real-time UI
+        await firebaseNotificationService.sendDataToUser(recipientUUID, {
+            subType: 'FRIEND_REQUEST_RECEIVED',
+            payload: JSON.stringify(existing)
+        });
+
+        return existing;
     }
 
     return await friendshipRepository.create({
@@ -37,6 +54,22 @@ class FriendService {
       recipientUUID,
       status: 'pending',
       message
+    }).then(async f => {
+        const requester = await userRepository.findByUUID(requesterUUID);
+        const requesterName = (requester?.name && requester.name !== 'User') ? requester.name : 'A user';
+
+        firebaseNotificationService.sendToUser(recipientUUID, 'friend_request', {
+            title: 'New Friend Request',
+            body: `${requesterName} sent you a friend request`
+        }, { actorUUID: requesterUUID });
+
+        // Trigger Data Message for Real-time UI
+        await firebaseNotificationService.sendDataToUser(recipientUUID, {
+            subType: 'FRIEND_REQUEST_RECEIVED',
+            payload: JSON.stringify(f)
+        });
+        
+        return f;
     });
   }
 
@@ -50,6 +83,21 @@ class FriendService {
     friendship.status = 'accepted';
     friendship.respondedAt = new Date();
     await friendshipRepository.save(friendship);
+
+    // Notify requester
+    const acceptor = await userRepository.findByUUID(userUUID);
+    const acceptorName = (acceptor?.name && acceptor.name !== 'User') ? acceptor.name : 'A user';
+
+    firebaseNotificationService.sendToUser(requesterUUID, 'friend_accepted', {
+        title: 'Friend Request Accepted',
+        body: `${acceptorName} accepted your friend request`
+    }, { actorUUID: userUUID });
+
+    // Trigger Data Message for Real-time UI
+    await firebaseNotificationService.sendDataToUser(requesterUUID, {
+        subType: 'FRIEND_ACCEPTED',
+        payload: JSON.stringify(friendship)
+    });
 
     return friendship;
   }

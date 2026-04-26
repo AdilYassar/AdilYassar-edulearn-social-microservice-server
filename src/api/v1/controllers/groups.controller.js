@@ -21,8 +21,8 @@ exports.getGroups = async (req, res) => {
 
 exports.getGroup = async (req, res) => {
     try {
-        const { groupId } = req.params;
-        const group = await groupService.getGroupDetails(groupId);
+        const { id } = req.params;
+        const group = await groupService.getGroupDetails(id);
         res.status(200).json({ status: 'success', data: group });
     } catch (error) {
          res.status(404).json({ status: 'error', message: error.message });
@@ -31,9 +31,9 @@ exports.getGroup = async (req, res) => {
 
 exports.addMember = async (req, res) => {
     try {
-        const { groupId } = req.params;
-        const { userUUID } = req.body;
-        const result = await groupService.addMember(req.user.quizServerUUID, groupId, userUUID);
+        const { id } = req.params;
+        const { memberUUID } = req.body;
+        const result = await groupService.addMember(req.user.quizServerUUID, id, memberUUID);
         res.status(200).json({ status: 'success', data: result });
     } catch (error) {
          res.status(400).json({ status: 'error', message: error.message });

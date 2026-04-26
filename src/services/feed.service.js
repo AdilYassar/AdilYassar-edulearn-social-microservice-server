@@ -3,6 +3,7 @@ const likeRepository = require('../repositories/like.repository');
 const commentRepository = require('../repositories/comment.repository');
 const userRepository = require('../repositories/user.repository');
 const friendshipRepository = require('../repositories/friendship.repository');
+const firebaseNotificationService = require('./firebase-notification.service');
 const logger = require('../utils/logger');
 
 class FeedService {
@@ -15,6 +16,31 @@ class FeedService {
       visibility,
       courseId
     });
+
+    // Notify ALL (Broadcast for new posts - standard notification)
+    const author = await userRepository.findByUUID(authorUUID);
+    firebaseNotificationService.broadcast('post_new', {
+        title: 'New Post',
+        body: `${author?.name || 'Someone'} shared a new post`
+    }, { targetType: 'post', targetId: post._id, actorUUID: authorUUID });
+
+    // Notify Friends via Data Message (Real-time Feed Update)
+    try {
+        const friendships = await friendshipRepository.findFriends(authorUUID);
+        const friendUUIDs = friendships.map(f => 
+            f.requesterUUID === authorUUID ? f.recipientUUID : f.requesterUUID
+        );
+        
+        if (friendUUIDs.length > 0) {
+            await firebaseNotificationService.sendDataToUsers(friendUUIDs, {
+                subType: 'POST_CREATED',
+                payload: JSON.stringify(post)
+            });
+        }
+    } catch (error) {
+        logger.error(`Failed to broadcast POST_CREATED event: ${error.message}`);
+    }
+
     return post;
   }
 
@@ -27,13 +53,13 @@ class FeedService {
        f.requesterUUID === userUUID ? f.recipientUUID : f.requesterUUID
     );
 
-    // 2. Fetch Posts
+    // 2. Fetch Posts - Include all public posts + friend-only posts from friends
     const query = {
         $or: [
-            { authorUUID: userUUID },
+            { visibility: 'public' },  // All public posts for everyone
             { 
               authorUUID: { $in: friendUUIDs },
-              visibility: { $in: ['public', 'friends'] }     
+              visibility: 'friends'     // Friends-only posts only from friends
             }
         ],
         isDeleted: false,
@@ -55,9 +81,20 @@ class FeedService {
     const likedMap = new Set(myLikes.map(l => l.targetId.toString()));
 
     // Merge Details
-    const feed = posts.map(post => {
+    const feed = await Promise.all(posts.map(async post => {
         const postObj = post.toObject ? post.toObject() : post;
         const author = authors.find(a => a.quizServerUUID === postObj.authorUUID);
+        
+        // Fetch comments for this post
+        const comments = await commentRepository.findByPost(postObj._id, 0, 10); // Get top 10 comments
+        const commentAuthorUUIDs = [...new Set(comments.map(c => c.authorUUID))];
+        const commentAuthors = await userRepository.findMany(commentAuthorUUIDs);
+
+        const enrichedComments = comments.map(c => ({
+            ...c.toObject ? c.toObject() : c,
+            author: commentAuthors.find(a => a.quizServerUUID === c.authorUUID) || { name: 'Unknown' }
+        }));
+
         return {
             ...postObj,
             author: author ? {
@@ -65,9 +102,10 @@ class FeedService {
                 avatar: author.avatar,
                 quizServerUUID: author.quizServerUUID
             } : { name: 'Unknown', quizServerUUID: postObj.authorUUID },
-            isLiked: likedMap.has(postObj._id.toString())
+            isLiked: likedMap.has(postObj._id.toString()),
+            comments: enrichedComments
         };
-    });
+    }));
 
     return feed;
   }
@@ -86,6 +124,17 @@ class FeedService {
              targetId: postId
         });
         await postRepository.updateStats(postId, { "stats.likes": 1 });
+        
+        // Notify author
+        const post = await postRepository.findById(postId);
+        if (post && post.authorUUID !== userUUID) {
+            const liker = await userRepository.findByUUID(userUUID);
+            firebaseNotificationService.sendToUser(post.authorUUID, 'post_like', {
+                title: 'New Like',
+                body: `${liker?.name || 'Someone'} liked your post`
+            }, { targetType: 'post', targetId: postId, actorUUID: userUUID });
+        }
+
         return { isLiked: true };
     }
   }
@@ -99,6 +148,16 @@ class FeedService {
 
       await postRepository.updateStats(postId, { "stats.comments": 1 });
       
+      // Notify author
+      const post = await postRepository.findById(postId);
+      if (post && post.authorUUID !== userUUID) {
+          const commenter = await userRepository.findByUUID(userUUID);
+          firebaseNotificationService.sendToUser(post.authorUUID, 'post_comment', {
+              title: 'New Comment',
+              body: `${commenter?.name || 'Someone'} commented on your post`
+          }, { targetType: 'post', targetId: postId, actorUUID: userUUID });
+      }
+
       return comment;
   }
 
@@ -112,7 +171,12 @@ class FeedService {
       const post = await postRepository.findOwned(postId, userUUID);
       if (!post) throw new Error('Post not found or unauthorized');
 
-      post.content = { ...post.content, ...content };
+      // Only update fields that are provided to avoid undefined spreading
+      if (content.text !== undefined) post.content.text = content.text;
+      if (content.media !== undefined) post.content.media = content.media;
+      if (content.progress !== undefined) post.content.progress = content.progress;
+      if (content.question !== undefined) post.content.question = content.question;
+      
       post.isEdited = true;
       post.editedAt = new Date();
       // Using save on document returned by Repo

@@ -24,6 +24,13 @@ module.exports = {
   rabbitmq: {
     url: process.env.RABBITMQ_URL,
   },
+  firebase: {
+    serviceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+    vapidKey: process.env.FIREBASE_VAPID_PUBLIC_KEY,
+  },
+  microservice: {
+    internalToken: process.env.MICROSERVICE_INTERNAL_TOKEN,
+  },
   googleDrive: {
     clientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
@@ -42,5 +49,10 @@ module.exports = {
   },
   cors: {
     origins: (process.env.ALLOWED_ORIGINS || '').split(','),
+  },
+  livekit: {
+    url: process.env.LIVEKIT_URL || '',
+    apiKey: process.env.LIVEKIT_API_KEY || '',
+    apiSecret: process.env.LIVEKIT_API_SECRET || '',
   },
 };

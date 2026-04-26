@@ -39,6 +39,7 @@ exports.authenticate = async (req, res, next) => {
             quizServerUUID: userUuid,
             userType: (decoded.type || decoded.role || 'student').toLowerCase(),
             name: decoded.name || decoded.username || 'User',
+            avatar: decoded.avatar || decoded.photo,
             socialSettings: {
               privacy: {
                 profileVisibility: 'friends',
@@ -59,6 +60,14 @@ exports.authenticate = async (req, res, next) => {
           logger.warn(`Could not auto-create user: ${err.message}`);
           user = await User.findOne({ quizServerUUID: userUuid });
       }
+    } else {
+        // Update user data from JWT if it's currently generic or missing
+        if ((!user.name || user.name === 'User') && decoded.name) {
+            user.name = decoded.name;
+            user.avatar = decoded.avatar || decoded.photo || user.avatar;
+            await user.save();
+            logger.info(`Updated existing social profile with name from JWT: ${userUuid}`);
+        }
     }
 
     if (!user) {

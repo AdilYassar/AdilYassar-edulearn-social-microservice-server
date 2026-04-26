@@ -10,6 +10,9 @@ const errorMiddleware = require('./api/v1/middlewares/error.middleware');
 const app = express();
 const path = require('path');
 
+// Trust proxy - needed for rate limiting and ngrok
+app.set('trust proxy', 1);
+
 // Static Files (for testing)
 app.use(express.static(path.join(__dirname, '../public')));
 

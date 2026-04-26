@@ -18,6 +18,9 @@ lerna-debug.log*
 .env.local
 .env.*.local
 
+# Firebase service account credentials
+src/config/firebase-service-account.json
+
 # IDEs and editors
 .vscode/
 .idea/

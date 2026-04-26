@@ -1,8 +1,8 @@
 const conversationRepository = require('../repositories/conversation.repository');
 const messageRepository = require('../repositories/message.repository');
 const userRepository = require('../repositories/user.repository');
+const groupRepository = require('../repositories/group.repository');
 const logger = require('../utils/logger');
-const { getIO } = require('../socket');
 
 class ChatService {
   
@@ -50,6 +50,15 @@ class ChatService {
                         lastSeen: otherUser.lastSeen
                     };
                 }
+            }
+        } else if (convObj.type === 'group' && convObj.groupId) {
+            const group = await groupRepository.findById(convObj.groupId);
+            if (group) {
+                convObj.group = {
+                    name: group.name,
+                    avatar: group.avatar,
+                    description: group.description
+                };
             }
         }
         results.push(convObj);
@@ -103,6 +112,7 @@ class ChatService {
 
     // Emit Socket Event
     try {
+        const { getIO } = require('../socket');
         const io = getIO();
         io.to(`conversation:${conversationId}`).emit('message:new', message);
         
@@ -114,6 +124,30 @@ class ChatService {
 
     } catch (err) {
         logger.error(`Socket emit failed: ${err.message}`);
+    }
+
+    // Notify via Push & Data Messages (All participants except sender)
+    const otherParticipants = conversation.participantUUIDs.filter(id => id !== senderUUID);
+    
+    if (otherParticipants.length > 0) {
+        const firebaseNotificationService = require('./firebase-notification.service');
+        const sender = await userRepository.findByUUID(senderUUID);
+        const displayName = (sender?.name && sender.name !== 'User') ? sender.name : 'A user';
+
+        // 1. Send Standard Push Notifications
+        firebaseNotificationService.sendToUsers(otherParticipants, 'message', {
+            title: `Message from ${displayName}`,
+            body: type === 'text' ? content.text : `Sent a ${type}`
+        }, { targetType: 'conversation', targetId: conversationId, actorUUID: senderUUID });
+
+        // 2. Send Real-time Data Events (UI Refresh)
+        await firebaseNotificationService.sendDataToUsers(otherParticipants, {
+            subType: 'MESSAGE_RECEIVED',
+            payload: JSON.stringify({
+                conversationId,
+                message: message
+            })
+        });
     }
 
     return message;
@@ -156,6 +190,7 @@ class ChatService {
       await message.save();
       
        try {
+        const { getIO } = require('../socket');
         const io = getIO();
         io.to(`conversation:${message.conversationId}`).emit('message:reaction', { messageId, userUUID, emoji });
        } catch(e) {}

@@ -104,18 +104,21 @@ class UserSyncConsumer {
   }
 
   async handleUserUpdated(data) {
-    const userType = (data.role || data.userType).toLowerCase();
+    const updateFields = {
+      lastSyncedAt: new Date()
+    };
+
+    if (data.name) updateFields.name = data.name;
+    if (data.avatar || data.photo) updateFields.avatar = data.avatar || data.photo;
+    
+    const role = data.role || data.userType;
+    if (role) {
+      updateFields.userType = role.toLowerCase();
+    }
     
     await User.updateOne(
       { quizServerUUID: data.uuid },
-      {
-        $set: {
-          name: data.name,
-          userType,
-          avatar: data.avatar || data.photo,
-          lastSyncedAt: new Date()
-        }
-      }
+      { $set: updateFields }
     );
     
     logger.info(`Synced user data: ${data.uuid}`);

@@ -40,3 +40,21 @@ exports.search = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
+
+exports.discover = async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const result = await userService.discoverUsers(
+            req.user.quizServerUUID,
+            parseInt(page),
+            parseInt(limit)
+        );
+        res.status(200).json({ 
+            status: 'success', 
+            data: result.users,
+            pagination: result.pagination
+        });
+    } catch (error) {
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+};

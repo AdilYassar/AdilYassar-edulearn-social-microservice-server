@@ -2,6 +2,7 @@ const groupRepository = require('../repositories/group.repository');
 const groupMemberRepository = require('../repositories/group-member.repository');
 const conversationRepository = require('../repositories/conversation.repository');
 const userRepository = require('../repositories/user.repository');
+const firebaseNotificationService = require('./firebase-notification.service');
 
 class GroupService {
     
@@ -10,7 +11,8 @@ class GroupService {
         const conversation = await conversationRepository.create({
             type: 'group',
             participantUUIDs: [creatorUUID], // Add creator initially
-            initiatorUUID: creatorUUID
+            initiatorUUID: creatorUUID,
+            unreadCounts: [{ userUUID: creatorUUID, count: 0 }]
         });
 
         // Create Group
@@ -31,11 +33,14 @@ class GroupService {
             joinMethod: 'creator'
         });
 
-        // Update conversation with group link (if schema supports it, repo update needed)
-        // conversationRepository.update(conversation._id, { groupId: group._id }); 
-        // Our Conversation model might not have groupId explicitly defined in previous steps, 
-        // but if it does, we should update it.
-        // Assuming loose schema or added field.
+        // Update conversation with group link
+        await conversationRepository.update(conversation._id, { groupId: group._id }); 
+
+        // Trigger Data Message for Real-time UI synchronization (for the creator)
+        await firebaseNotificationService.sendDataToUser(creatorUUID, {
+            subType: 'GROUP_CREATED',
+            payload: JSON.stringify(group)
+        });
 
         return group;
     }
@@ -81,6 +86,25 @@ class GroupService {
        await conversationRepository.update(group.conversationId, {
            $addToSet: { participantUUIDs: newMemberUUID },
            $push: { unreadCounts: { userUUID: newMemberUUID, count: 0 } }
+       });
+
+       // Notify new member
+       const inviter = await userRepository.findByUUID(userUUID);
+       const inviterName = (inviter?.name && inviter.name !== 'User') ? inviter.name : 'A user';
+
+       firebaseNotificationService.sendToUser(newMemberUUID, 'group_invite', {
+           title: 'Added to Group',
+           body: `${inviterName} added you to ${group.name}`
+       }, { targetType: 'group', targetId: groupId, actorUUID: userUUID });
+
+       // Trigger Data Message for Real-time UI synchronization
+       await firebaseNotificationService.sendDataToUser(newMemberUUID, {
+           subType: 'GROUP_MEMBER_ADDED',
+           payload: JSON.stringify({
+               groupId,
+               groupName: group.name,
+               addedBy: userUUID
+           })
        });
 
        return { status: 'added' };

@@ -25,5 +25,10 @@ class UserRepository {
         .limit(limit)
         .select('quizServerUUID name avatar bio');
     }
+
+    async findAllUUIDs() {
+        const users = await User.find({ isActive: true }).select('quizServerUUID');
+        return users.map(u => u.quizServerUUID);
+    }
 }
 module.exports = new UserRepository();

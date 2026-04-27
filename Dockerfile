@@ -1,3 +1,4 @@
+# Production Dockerfile for Social Microservice
 FROM node:20-alpine
 
 WORKDIR /app

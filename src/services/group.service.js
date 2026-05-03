@@ -6,16 +6,19 @@ const firebaseNotificationService = require('./firebase-notification.service');
 
 class GroupService {
     
-    async createGroup(creatorUUID, name, description, settings = {}) {
-        // Create Conversation first
+    async createGroup(creatorUUID, name, description, settings = {}, initialMemberUUIDs = []) {
+        // 1. Combine creator and members into unique list
+        const participants = Array.from(new Set([creatorUUID, ...initialMemberUUIDs]));
+
+        // 2. Create Conversation with all participants
         const conversation = await conversationRepository.create({
             type: 'group',
-            participantUUIDs: [creatorUUID], // Add creator initially
+            participantUUIDs: participants,
             initiatorUUID: creatorUUID,
-            unreadCounts: [{ userUUID: creatorUUID, count: 0 }]
+            unreadCounts: participants.map(uuid => ({ userUUID: uuid, count: 0 }))
         });
 
-        // Create Group
+        // 3. Create Group linked to conversation
         const group = await groupRepository.create({
             name,
             description,
@@ -25,18 +28,41 @@ class GroupService {
             settings
         });
 
-        // Add Member Link
-        await groupMemberRepository.create({
-            groupId: group._id,
-            userUUID: creatorUUID,
-            role: 'admin',
-            joinMethod: 'creator'
-        });
+        // 4. Create GroupMember records for everyone
+        for (const uuid of participants) {
+            await groupMemberRepository.create({
+                groupId: group._id,
+                userUUID: uuid,
+                role: uuid === creatorUUID ? 'admin' : 'member',
+                joinMethod: uuid === creatorUUID ? 'creator' : 'invited',
+                invitedByUUID: uuid === creatorUUID ? null : creatorUUID
+            });
+        }
 
-        // Update conversation with group link
+        // 5. Update conversation with group link
         await conversationRepository.update(conversation._id, { groupId: group._id }); 
 
-        // Trigger Data Message for Real-time UI synchronization (for the creator)
+        // 6. Notify initial members (except creator)
+        if (initialMemberUUIDs.length > 0) {
+            const creator = await userRepository.findByUUID(creatorUUID);
+            const creatorName = creator?.name || 'Someone';
+
+            for (const memberUUID of initialMemberUUIDs) {
+                // Visible Notification
+                firebaseNotificationService.sendToUser(memberUUID, 'group_invite', {
+                    title: 'New Group',
+                    body: `${creatorName} added you to the group "${name}"`
+                }, { targetType: 'group', targetId: group._id, actorUUID: creatorUUID });
+
+                // Real-time Data Sync
+                firebaseNotificationService.sendDataToUser(memberUUID, {
+                    subType: 'GROUP_CREATED',
+                    payload: JSON.stringify(group)
+                });
+            }
+        }
+
+        // 7. Sync for creator
         await firebaseNotificationService.sendDataToUser(creatorUUID, {
             subType: 'GROUP_CREATED',
             payload: JSON.stringify(group)

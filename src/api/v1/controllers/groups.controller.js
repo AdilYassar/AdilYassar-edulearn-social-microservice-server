@@ -2,8 +2,14 @@ const groupService = require('../../../services/group.service');
 
 exports.createGroup = async (req, res) => {
     try {
-        const { name, description, settings } = req.body;
-        const group = await groupService.createGroup(req.user.quizServerUUID, name, description, settings);
+        const { name, description, settings, members } = req.body;
+        const group = await groupService.createGroup(
+            req.user.quizServerUUID, 
+            name, 
+            description, 
+            settings,
+            members || []
+        );
         res.status(201).json({ status: 'success', data: group });
     } catch (error) {
         res.status(400).json({ status: 'error', message: error.message });

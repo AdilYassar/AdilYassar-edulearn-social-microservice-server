@@ -65,61 +65,53 @@ class FeedService {
   async getFeed(userUUID, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
 
-    // 1. Get Friend UUIDs
+    // 1. Get Friend UUIDs for visibility
     const friendships = await friendshipRepository.findFriends(userUUID);
     const friendUUIDs = friendships.map(f => 
        f.requesterUUID === userUUID ? f.recipientUUID : f.requesterUUID
     );
 
-    // 2. Fetch Posts - Include all public posts + friend-only posts from friends
+    // 2. Fetch Posts
     const query = {
         $or: [
-            { visibility: 'public' },  // All public posts for everyone
-            { 
-              authorUUID: { $in: friendUUIDs },
-              visibility: 'friends'     // Friends-only posts only from friends
-            }
+            { visibility: 'public' },
+            { authorUUID: { $in: friendUUIDs }, visibility: 'friends' }
         ],
         isDeleted: false,
         moderationStatus: 'approved'
     };
-
     const posts = await postRepository.findFeed(query, skip, limit);
-    // Note: repository.findFeed returns mongoose docs. If need lean, repo should lean() or we convert.
-    // Assuming Repo returns docs or objects. If docs, .map works but .toObject() needed for mutation usually.
-    // Let's assume Repo returns docs.
-
-    // Populate Author info
-    const uniqueAuthors = [...new Set(posts.map(p => p.authorUUID))];
-    const authors = await userRepository.findMany(uniqueAuthors);
     
-    // Check if I liked or saved them
+    // 3. Batch fetch all Authors and Interaction States
+    const uniqueAuthors = [...new Set(posts.map(p => p.authorUUID))];
     const postIds = posts.map(p => p._id);
-    const [myLikes, mySaves] = await Promise.all([
+    
+    // Pre-fetch all comments to avoid N+1 queries for comment authors
+    const allComments = await Promise.all(posts.map(p => commentRepository.findByPost(p._id, 0, 3)));
+    const flatComments = allComments.flat();
+    const allCommentAuthorUUIDs = [...new Set(flatComments.map(c => c.authorUUID))];
+    const allCommentIds = flatComments.map(c => c._id);
+
+    const [authors, myLikes, mySaves, commentAuthors, myCommentLikes] = await Promise.all([
+        userRepository.findMany(uniqueAuthors),
         likeRepository.findMany(userUUID, 'post', postIds),
-        savedPostRepository.findMany(userUUID, postIds)
+        savedPostRepository.findMany(userUUID, postIds),
+        userRepository.findMany(allCommentAuthorUUIDs),
+        likeRepository.findMany(userUUID, 'comment', allCommentIds)
     ]);
     
     const likedMap = new Set(myLikes.map(l => l.targetId.toString()));
     const savedMap = new Set(mySaves.map(s => s.postId.toString()));
+    const likedCommentsMap = new Set(myCommentLikes.map(l => l.targetId.toString()));
 
-    // Merge Details
-    const feed = await Promise.all(posts.map(async post => {
+    // 4. Enrich each post
+    const feed = posts.map((post, index) => {
         const postObj = post.toObject ? post.toObject() : post;
         const author = authors.find(a => a.quizServerUUID === postObj.authorUUID);
-        
-        // Fetch comments for this post
-        const comments = await commentRepository.findByPost(postObj._id, 0, 3); // Get top 3 preview comments
-        const commentAuthorUUIDs = [...new Set(comments.map(c => c.authorUUID))];
-        const commentAuthors = await userRepository.findMany(commentAuthorUUIDs);
-        
-        // Check if I liked these preview comments
-        const commentIds = comments.map(c => c._id);
-        const myCommentLikes = await likeRepository.findMany(userUUID, 'comment', commentIds);
-        const likedCommentsMap = new Set(myCommentLikes.map(l => l.targetId.toString()));
+        const comments = allComments[index];
 
         const enrichedComments = comments.map(c => ({
-            ...c.toObject ? c.toObject() : c,
+            ...c,
             author: commentAuthors.find(a => a.quizServerUUID === c.authorUUID) || { name: 'Unknown' },
             isLiked: likedCommentsMap.has(c._id.toString())
         }));
@@ -130,13 +122,13 @@ class FeedService {
                 name: author.name,
                 avatar: author.avatar,
                 quizServerUUID: author.quizServerUUID,
-                learningStats: author.learningStats // <--- Added for "Social Learning" badges
+                learningStats: author.learningStats
             } : { name: 'Unknown', quizServerUUID: postObj.authorUUID },
             isLiked: likedMap.has(postObj._id.toString()),
             isSaved: savedMap.has(postObj._id.toString()),
             comments: enrichedComments
         };
-    }));
+    });
 
     return feed;
   }
@@ -300,49 +292,7 @@ class FeedService {
       return { status: 'deleted' };
   }
 
-  async getComments(postId, page = 1, limit = 50) {
-      const skip = (page - 1) * limit;
-      const comments = await commentRepository.findByPost(postId, skip, limit);
-      
-      const authorUUIDs = [...new Set(comments.map(c => c.authorUUID))];
-      const authors = await userRepository.findMany(authorUUIDs);
 
-      return comments.map(c => ({
-          ...c,
-          author: authors.find(a => a.quizServerUUID === c.authorUUID) || { name: 'Unknown', quizServerUUID: c.authorUUID }
-      }));
-  }
-
-  async deleteComment(userUUID, commentId) {
-      const comment = await commentRepository.findOwned(commentId, userUUID);
-      if (!comment) throw new Error('Comment not found or unauthorized');
-
-      comment.isDeleted = true;
-      comment.deletedAt = new Date();
-      await comment.save();
-      
-      await postRepository.updateStats(comment.postId, { "stats.comments": -1 });
-      
-      return { status: 'deleted' };
-  }
-
-  async likeComment(userUUID, commentId) {
-    const existing = await likeRepository.find(userUUID, 'comment', commentId);
-
-    if (existing) {
-        await likeRepository.delete(existing._id);
-        await commentRepository.update(commentId, { $inc: { "stats.likes": -1 } });
-        return { isLiked: false };
-    } else {
-        await likeRepository.create({
-             userUUID,
-             targetType: 'comment',
-             targetId: commentId
-        });
-        await commentRepository.update(commentId, { $inc: { "stats.likes": 1 } });
-        return { isLiked: true };
-    }
-  }
 
   async toggleSavePost(userUUID, postId) {
     const existing = await savedPostRepository.find(userUUID, postId);

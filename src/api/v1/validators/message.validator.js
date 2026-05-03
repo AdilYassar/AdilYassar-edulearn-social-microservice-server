@@ -7,7 +7,7 @@ const schemas = {
         Joi.string().required(),
         Joi.object().required()
     ),
-    type: Joi.string().valid('text', 'image', 'video', 'voice', 'document', 'location').default('text')
+    type: Joi.string().valid('text', 'image', 'video', 'voice', 'document', 'location', 'post').default('text')
   }),
   createConversation: Joi.object({
       recipientUUID: Joi.string().uuid().required()

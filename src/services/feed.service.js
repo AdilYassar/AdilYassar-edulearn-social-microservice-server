@@ -93,10 +93,15 @@ class FeedService {
     const uniqueAuthors = [...new Set(posts.map(p => p.authorUUID))];
     const authors = await userRepository.findMany(uniqueAuthors);
     
-    // Check if I liked them
+    // Check if I liked or saved them
     const postIds = posts.map(p => p._id);
-    const myLikes = await likeRepository.findMany(userUUID, 'post', postIds);
+    const [myLikes, mySaves] = await Promise.all([
+        likeRepository.findMany(userUUID, 'post', postIds),
+        savedPostRepository.findMany(userUUID, postIds)
+    ]);
+    
     const likedMap = new Set(myLikes.map(l => l.targetId.toString()));
+    const savedMap = new Set(mySaves.map(s => s.postId.toString()));
 
     // Merge Details
     const feed = await Promise.all(posts.map(async post => {
@@ -121,6 +126,7 @@ class FeedService {
                 quizServerUUID: author.quizServerUUID
             } : { name: 'Unknown', quizServerUUID: postObj.authorUUID },
             isLiked: likedMap.has(postObj._id.toString()),
+            isSaved: savedMap.has(postObj._id.toString()),
             comments: enrichedComments
         };
     }));

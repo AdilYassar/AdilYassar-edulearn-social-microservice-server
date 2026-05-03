@@ -24,6 +24,13 @@ class SavedPostRepository {
     async countByUser(userUUID) {
         return await SavedPost.countDocuments({ userUUID });
     }
+
+    async findMany(userUUID, postIds) {
+        return await SavedPost.find({ 
+            userUUID, 
+            postId: { $in: postIds } 
+        });
+    }
 }
 
 module.exports = new SavedPostRepository();

@@ -108,3 +108,23 @@ exports.likeComment = async (req, res) => {
         res.status(400).json({ status: 'error', message: error.message });
     }
 };
+
+exports.toggleSavePost = async (req, res) => {
+    try {
+        const { id: postId } = req.params;
+        const result = await feedService.toggleSavePost(req.user.quizServerUUID, postId);
+        res.status(200).json({ status: 'success', data: result });
+    } catch (error) {
+        res.status(400).json({ status: 'error', message: error.message });
+    }
+};
+
+exports.getSavedPosts = async (req, res) => {
+    try {
+        const { page = 1 } = req.query;
+        const posts = await feedService.getSavedPosts(req.user.quizServerUUID, parseInt(page));
+        res.status(200).json({ status: 'success', data: posts });
+    } catch (error) {
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+};

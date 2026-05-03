@@ -2,7 +2,13 @@ const { google } = require('googleapis');
 const config = require('../config');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
+const ffmpeg = require('fluent-ffmpeg');
+const ffprobePath = require('ffprobe-static').path;
 const logger = require('../utils/logger');
+
+// Configure ffmpeg
+ffmpeg.setFfprobePath(ffprobePath);
 
 const CLIENT_ID = config.googleDrive.clientId;
 const CLIENT_SECRET = config.googleDrive.clientSecret;
@@ -27,8 +33,44 @@ class MediaService {
         this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
     }
 
+    async getVideoMetadata(filePath) {
+        return new Promise((resolve, reject) => {
+            ffmpeg.ffprobe(filePath, (err, metadata) => {
+                if (err) return reject(err);
+                const { width, height } = metadata.streams.find(s => s.width && s.height) || {};
+                resolve({
+                    width,
+                    height,
+                    aspectRatio: width / height,
+                    duration: metadata.format.duration
+                });
+            });
+        });
+    }
+
     async uploadFile(filePath, fileName, mimeType) {
         try {
+            // Extract dimensions for images and videos
+            let dimensions = {};
+            if (mimeType.startsWith('image/')) {
+                try {
+                    const metadata = await sharp(filePath).metadata();
+                    dimensions = {
+                        width: metadata.width,
+                        height: metadata.height,
+                        aspectRatio: metadata.width / metadata.height
+                    };
+                } catch (err) {
+                    logger.error(`Failed to extract image dimensions: ${err.message}`);
+                }
+            } else if (mimeType.startsWith('video/')) {
+                try {
+                    dimensions = await this.getVideoMetadata(filePath);
+                } catch (err) {
+                    logger.error(`Failed to extract video dimensions: ${err.message}`);
+                }
+            }
+
             const fileMetadata = {
                 name: fileName,
                 parents: [FOLDER_ID]
@@ -69,7 +111,8 @@ class MediaService {
                 url: directUrl,
                 downloadUrl: response.data.webContentLink,
                 thumbnail: response.data.thumbnailLink,
-                mimeType: mimeType
+                mimeType: mimeType,
+                ...dimensions
             };
         } catch (error) {
             logger.error(`Google Drive upload failed:`, error);

@@ -25,4 +25,8 @@ router.delete('/:postId', feedController.deletePost);
 router.delete('/comments/:commentId', feedController.deleteComment);
 router.post('/comments/:commentId/like', feedController.likeComment);
 
+// Saved Posts Management
+router.get('/saved', feedController.getSavedPosts);
+router.post('/:id/save', feedController.toggleSavePost);
+
 module.exports = router;

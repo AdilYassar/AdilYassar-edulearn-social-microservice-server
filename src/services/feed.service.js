@@ -2,6 +2,7 @@ const postRepository = require('../repositories/post.repository');
 const likeRepository = require('../repositories/like.repository');
 const commentRepository = require('../repositories/comment.repository');
 const userRepository = require('../repositories/user.repository');
+const savedPostRepository = require('../repositories/saved-post.repository');
 const friendshipRepository = require('../repositories/friendship.repository');
 const firebaseNotificationService = require('./firebase-notification.service');
 const logger = require('../utils/logger');
@@ -9,38 +10,55 @@ const logger = require('../utils/logger');
 class FeedService {
 
   async createPost(authorUUID, type, content, visibility = 'public', courseId) {
+    // Determine contentType
+    let contentType = 'text';
+    if (content.media && content.media.length > 0) {
+      contentType = content.media[0].type; // 'image' or 'video'
+    }
+
     const post = await postRepository.create({
       authorUUID,
       type,
+      contentType,
       content,
       visibility,
       courseId
     });
 
-    // Notify ALL (Broadcast for new posts - standard notification)
+    // ── NOTIFICATIONS ──
     const author = await userRepository.findByUUID(authorUUID);
-    firebaseNotificationService.broadcast('post_new', {
-        title: 'New Post',
-        body: `${author?.name || 'Someone'} shared a new post`
-    }, { targetType: 'post', targetId: post._id, actorUUID: authorUUID });
+    const postData = { targetType: 'post', targetId: post._id, actorUUID: authorUUID };
+    
+    // 1. Get Friend UUIDs
+    const friendships = await friendshipRepository.findFriends(authorUUID);
+    const friendUUIDs = friendships.map(f => 
+        f.requesterUUID === authorUUID ? f.recipientUUID : f.requesterUUID
+    );
 
-    // Notify Friends via Data Message (Real-time Feed Update)
-    try {
-        const friendships = await friendshipRepository.findFriends(authorUUID);
-        const friendUUIDs = friendships.map(f => 
-            f.requesterUUID === authorUUID ? f.recipientUUID : f.requesterUUID
-        );
-        
+    if (type === 'announcement') {
+        // Global broadcast for announcements
+        firebaseNotificationService.broadcast('post_new', {
+            title: 'New Announcement',
+            body: `${author?.name || 'Someone'} posted an announcement: ${content.text?.substring(0, 50)}...`
+        }, postData);
+    } else {
+        // Targeted visible notification + data sync for FRIENDS ONLY
         if (friendUUIDs.length > 0) {
-            await firebaseNotificationService.sendDataToUsers(friendUUIDs, {
+            firebaseNotificationService.sendToUsers(friendUUIDs, 'post_new', {
+                title: 'New Post',
+                body: `${author?.name || 'Someone'} shared a new post`
+            }, {
+                ...postData,
                 subType: 'POST_CREATED',
                 payload: JSON.stringify(post)
             });
         }
-    } catch (error) {
-        logger.error(`Failed to broadcast POST_CREATED event: ${error.message}`);
     }
 
+    // 2. Fallback: Still send silent data sync to friends if they weren't notified visibly
+    // (Actually sendToUsers already does combined, but if we want to ensure feed updates for everyone else...)
+    // For now, let's keep it clean. Friends get ONE message.
+    
     return post;
   }
 
@@ -173,7 +191,15 @@ class FeedService {
 
       // Only update fields that are provided to avoid undefined spreading
       if (content.text !== undefined) post.content.text = content.text;
-      if (content.media !== undefined) post.content.media = content.media;
+      if (content.media !== undefined) {
+          post.content.media = content.media;
+          // Update contentType based on new media
+          if (content.media.length > 0) {
+              post.contentType = content.media[0].type;
+          } else {
+              post.contentType = 'text';
+          }
+      }
       if (content.progress !== undefined) post.content.progress = content.progress;
       if (content.question !== undefined) post.content.question = content.question;
       
@@ -235,6 +261,64 @@ class FeedService {
         await commentRepository.update(commentId, { $inc: { "stats.likes": 1 } });
         return { isLiked: true };
     }
+  }
+
+  async toggleSavePost(userUUID, postId) {
+    const existing = await savedPostRepository.find(userUUID, postId);
+
+    if (existing) { // Unsave
+        await savedPostRepository.delete(existing._id);
+        return { isSaved: false };
+    } else { // Save
+        await savedPostRepository.create({
+             userUUID,
+             postId
+        });
+        
+        // Notify author
+        const post = await postRepository.findById(postId);
+        if (post && post.authorUUID !== userUUID) {
+            const saver = await userRepository.findByUUID(userUUID);
+            firebaseNotificationService.sendToUser(post.authorUUID, 'post_saved', {
+                title: 'Post Saved',
+                body: `${saver?.name || 'Someone'} saved your post`
+            }, { targetType: 'post', targetId: postId, actorUUID: userUUID });
+        }
+
+        return { isSaved: true };
+    }
+  }
+
+  async getSavedPosts(userUUID, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const savedRecords = await savedPostRepository.findByUser(userUUID, skip, limit);
+    
+    // Convert to standard post format
+    const posts = savedRecords.map(r => r.postId).filter(p => p != null);
+    
+    // Populate additional details (isLiked, author info, etc)
+    const enrichedPosts = await Promise.all(posts.map(async post => {
+        const postObj = post.toObject ? post.toObject() : post;
+        
+        // Basic author info
+        const author = await userRepository.findByUUID(postObj.authorUUID);
+        
+        // Check if I liked it
+        const liked = await likeRepository.find(userUUID, 'post', postObj._id);
+
+        return {
+            ...postObj,
+            author: author ? {
+                name: author.name,
+                avatar: author.avatar,
+                quizServerUUID: author.quizServerUUID
+            } : { name: 'Unknown', quizServerUUID: postObj.authorUUID },
+            isLiked: !!liked,
+            isSaved: true // By definition in this list
+        };
+    }));
+
+    return enrichedPosts;
   }
 }
 

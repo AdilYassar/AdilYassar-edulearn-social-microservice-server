@@ -4,7 +4,8 @@ const postSchema = new mongoose.Schema({
   authorUUID: { type: String, required: true, index: true },
   
   // Post type and content
-  type: { type: String, enum: ['progress', 'question', 'achievement', 'general'], default: 'general' },
+  type: { type: String, enum: ['progress', 'question', 'achievement', 'general', 'announcement'], default: 'general' },
+  contentType: { type: String, enum: ['text', 'image', 'video', 'poll'], default: 'text' }, // Helper for frontend
   content: {
     text: { type: String },
     
@@ -15,8 +16,11 @@ const postSchema = new mongoose.Schema({
       fileName: { type: String },
       fileSize: { type: Number },
       mimeType: { type: String },
+      width: { type: Number },
+      height: { type: Number },
+      aspectRatio: { type: Number },
       duration: { type: Number },          // For voice notes (seconds)
-      type: { type: String, enum: ['image', 'video', 'document'] },
+      type: { type: String, enum: ['image', 'video'] },
       thumbnail: { type: String },       // Google Drive file ID
       thumbnailUrl: { type: String },    // Direct thumbnail URL
       caption: { type: String }

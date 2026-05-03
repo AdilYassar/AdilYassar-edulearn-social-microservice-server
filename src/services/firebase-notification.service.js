@@ -30,11 +30,10 @@ class FirebaseNotificationService {
             // 2. Send real-time via Socket.IO (if connected)
             this.emitSocketNotification(recipientUUID, notification);
 
-            // 3. Send push notifications to all devices of the user
-            await this.pushToUserDevices(recipientUUID, type, content, data);
-
-            // 4. Send silent data message for real-time UI synchronization
-            await this.sendDataToUser(recipientUUID, {
+            // 3. Send combined push notification (Visible + Data in one message)
+            // This prevents the "Double Notification" issue
+            await this.pushToUserDevices(recipientUUID, type, content, {
+                ...data,
                 subType: 'NOTIFICATION_RECEIVED',
                 payload: JSON.stringify(notification)
             });
@@ -292,7 +291,14 @@ class FirebaseNotificationService {
             const allDevices = await deviceTokenRepository.findAllValidTokens();
             if (allDevices.length === 0) return { success: 0, failed: 0 };
 
-            const tokens = allDevices.map(d => d.token);
+            // Exclude actor's tokens to prevent self-notification
+            const actorUUID = data.actorUUID;
+            const filteredDevices = actorUUID 
+                ? allDevices.filter(d => d.userUUID !== actorUUID)
+                : allDevices;
+
+            if (filteredDevices.length === 0) return { success: 0, failed: 0 };
+            const tokens = filteredDevices.map(d => d.token);
             
             // Prepare Message
             const message = {

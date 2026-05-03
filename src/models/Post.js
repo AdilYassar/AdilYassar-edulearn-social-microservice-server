@@ -80,7 +80,17 @@ const postSchema = new mongoose.Schema({
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date },
 }, { 
-  timestamps: true 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Virtual for author information
+postSchema.virtual('author', {
+  ref: 'User',
+  localField: 'authorUUID',
+  foreignField: 'quizServerUUID',
+  justOne: true
 });
 
 postSchema.index({ authorUUID: 1, createdAt: -1 });

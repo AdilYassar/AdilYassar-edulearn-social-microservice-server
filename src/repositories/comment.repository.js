@@ -5,8 +5,16 @@ class CommentRepository {
         return await Comment.create(data);
     }
 
-    async findByPost(postId, skip, limit) {
-        return await Comment.find({ postId, isDeleted: false })
+    async findByPost(postId, skip, limit, parentId = null) {
+        const query = { postId, isDeleted: false };
+        if (parentId) {
+            query.parentId = parentId;
+        } else {
+            // If fetching top-level, specifically exclude replies
+            query.parentId = { $exists: false };
+        }
+        
+        return await Comment.find(query)
             .sort({ createdAt: 1 })
             .skip(skip)
             .limit(limit)
@@ -24,6 +32,10 @@ class CommentRepository {
 
     async update(id, updates) {
         return await Comment.findByIdAndUpdate(id, updates, { new: true });
+    }
+
+    async updateStats(id, updates) {
+        return await Comment.findByIdAndUpdate(id, { $inc: updates }, { new: true });
     }
 }
 

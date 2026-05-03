@@ -39,8 +39,8 @@ exports.likePost = async (req, res) => {
 exports.commentOnPost = async (req, res) => {
     try {
         const { id: postId } = req.params;
-        const { content } = req.body;
-        const comment = await feedService.addComment(req.user.quizServerUUID, postId, content);
+        const { content, parentId } = req.body;
+        const comment = await feedService.addComment(req.user.quizServerUUID, postId, content, parentId);
         res.status(201).json({ status: 'success', data: comment });
     } catch (error) {
          res.status(400).json({ status: 'error', message: error.message });
@@ -81,8 +81,8 @@ exports.deletePost = async (req, res) => {
 exports.getComments = async (req, res) => {
     try {
         const { id: postId } = req.params;
-        const { page } = req.query;
-        const comments = await feedService.getComments(postId, parseInt(page));
+        const { page, parentId } = req.query;
+        const comments = await feedService.getComments(postId, parseInt(page), parentId);
         res.status(200).json({ status: 'success', data: comments });
     } catch (error) {
         res.status(500).json({ status: 'error', message: error.message });

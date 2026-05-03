@@ -9,7 +9,8 @@ const schemas = {
       joinApproval: Joi.boolean(),
       allowMemberInvites: Joi.boolean(),
       onlyAdminsCanPost: Joi.boolean()
-    }).optional()
+    }).optional(),
+    members: Joi.array().items(Joi.string().uuid()).optional()
   }),
   addMember: Joi.object({
     memberUUID: Joi.string().uuid().required()

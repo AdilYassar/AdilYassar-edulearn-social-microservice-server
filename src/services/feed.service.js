@@ -163,26 +163,94 @@ class FeedService {
     }
   }
 
-  async addComment(userUUID, postId, content) {
+  async addComment(userUUID, postId, content, parentId = null) {
       const comment = await commentRepository.create({
           postId,
           authorUUID: userUUID,
-          content: { text: content }
+          content: { text: content },
+          parentId
       });
 
-      await postRepository.updateStats(postId, { "stats.comments": 1 });
-      
-      // Notify author
-      const post = await postRepository.findById(postId);
-      if (post && post.authorUUID !== userUUID) {
-          const commenter = await userRepository.findByUUID(userUUID);
-          firebaseNotificationService.sendToUser(post.authorUUID, 'post_comment', {
-              title: 'New Comment',
-              body: `${commenter?.name || 'Someone'} commented on your post`
-          }, { targetType: 'post', targetId: postId, actorUUID: userUUID });
+      // Update counts
+      if (parentId) {
+          await commentRepository.updateStats(parentId, { "stats.replies": 1 });
+          
+          // Notify Comment Author
+          const parentComment = await commentRepository.findById(parentId);
+          if (parentComment && parentComment.authorUUID !== userUUID) {
+              const replier = await userRepository.findByUUID(userUUID);
+              firebaseNotificationService.sendToUser(parentComment.authorUUID, 'comment_reply', {
+                  title: 'New Reply',
+                  body: `${replier?.name || 'Someone'} replied to your comment`
+              }, { 
+                targetType: 'comment', 
+                targetId: parentId, 
+                actorUUID: userUUID,
+                data: { postId } 
+              });
+          }
+      } else {
+          await postRepository.updateStats(postId, { "stats.comments": 1 });
+          
+          // Notify Post Author
+          const post = await postRepository.findById(postId);
+          if (post && post.authorUUID !== userUUID) {
+              const commenter = await userRepository.findByUUID(userUUID);
+              firebaseNotificationService.sendToUser(post.authorUUID, 'post_comment', {
+                  title: 'New Comment',
+                  body: `${commenter?.name || 'Someone'} commented on your post`
+              }, { targetType: 'post', targetId: postId, actorUUID: userUUID });
+          }
       }
 
       return comment;
+  }
+
+  async likeComment(userUUID, commentId) {
+      const existing = await likeRepository.find(userUUID, 'comment', commentId);
+      
+      if (existing) {
+          await likeRepository.delete(existing._id);
+          await commentRepository.updateStats(commentId, { "stats.likes": -1 });
+          return { isLiked: false };
+      } else {
+          await likeRepository.create({
+              userUUID,
+              targetType: 'comment',
+              targetId: commentId
+          });
+          await commentRepository.updateStats(commentId, { "stats.likes": 1 });
+          
+          // Notify author
+          const comment = await commentRepository.findById(commentId);
+          if (comment && comment.authorUUID !== userUUID) {
+              const liker = await userRepository.findByUUID(userUUID);
+              firebaseNotificationService.sendToUser(comment.authorUUID, 'comment_like', {
+                  title: 'Comment Liked',
+                  body: `${liker?.name || 'Someone'} liked your comment`
+              }, { 
+                targetType: 'comment', 
+                targetId: commentId, 
+                actorUUID: userUUID,
+                data: { postId: comment.postId }
+              });
+          }
+
+          return { isLiked: true };
+      }
+  }
+
+  async getComments(postId, page = 1, parentId = null) {
+      const skip = (page - 1) * 10;
+      const comments = await commentRepository.findByPost(postId, skip, 10, parentId);
+      
+      const authorUUIDs = [...new Set(comments.map(c => c.authorUUID))];
+      const authors = await userRepository.findMany(authorUUIDs);
+
+      return comments.map(c => ({
+          ...c,
+          author: authors.find(a => a.quizServerUUID === c.authorUUID) || { name: 'Unknown' }
+      }));
   }
 
   async getPost(postId) {

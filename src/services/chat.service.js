@@ -89,14 +89,20 @@ class ChatService {
         senderUUID,
         type,
         content,
-        // formattedContent: type === 'text' ? content.text : 'Media' 
     });
 
     // Update conversation lastMessage
+    let previewText = '[Media]';
+    if (type === 'text') {
+        previewText = content.text.substring(0, 50);
+    } else if (type === 'post') {
+        previewText = '[Shared Post]';
+    }
+
     conversation.lastMessage = {
         messageId: message._id,
         senderUUID,
-        preview: type === 'text' ? content.text.substring(0, 50) : `[${type}]`,
+        preview: previewText,
         timestamp: new Date(),
         type
     };
@@ -135,9 +141,16 @@ class ChatService {
         const displayName = (sender?.name && sender.name !== 'User') ? sender.name : 'A user';
 
         // 1. Send Standard Push Notifications
+        let notificationBody = `Sent a ${type}`;
+        if (type === 'text') {
+            notificationBody = content.text;
+        } else if (type === 'post') {
+            notificationBody = 'shared a post with you';
+        }
+
         firebaseNotificationService.sendToUsers(otherParticipants, 'message', {
             title: `Message from ${displayName}`,
-            body: type === 'text' ? content.text : `Sent a ${type}`
+            body: notificationBody
         }, { targetType: 'conversation', targetId: conversationId, actorUUID: senderUUID });
 
         // 2. Send Real-time Data Events (UI Refresh)

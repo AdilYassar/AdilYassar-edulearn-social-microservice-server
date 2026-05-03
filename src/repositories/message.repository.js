@@ -5,7 +5,8 @@ class MessageRepository {
         return await Message.find({ conversationId })
           .sort({ createdAt: -1 })
           .skip(skip)
-          .limit(limit);
+          .limit(limit)
+          .populate('content.postId');
     }
     
     async create(data) {

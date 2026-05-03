@@ -7,7 +7,7 @@ const messageSchema = new mongoose.Schema({
   // Message content
   type: { 
     type: String, 
-    enum: ['text', 'image', 'video', 'voice', 'document', 'location', 'system'], 
+    enum: ['text', 'image', 'video', 'voice', 'document', 'location', 'system', 'post'], 
     default: 'text' 
   },
   content: {
@@ -22,6 +22,9 @@ const messageSchema = new mongoose.Schema({
     duration: { type: Number },          // For voice notes (seconds)
     thumbnail: { type: String },         // Google Drive file ID for thumbnails
     thumbnailUrl: { type: String },      // Direct thumbnail URL
+
+    // For shared posts
+    postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post' }, 
     
     // For location sharing
     location: {

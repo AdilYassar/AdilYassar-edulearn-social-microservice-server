@@ -1,11 +1,32 @@
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 
 class NotificationRepository {
     async findByUser(userUUID, skip, limit) {
-        return await Notification.find({ recipientUUID: userUUID })
+        const notifications = await Notification.find({ recipientUUID: userUUID })
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .lean();
+
+        // Batch-fetch all actor profiles in a single query (no N+1)
+        const actorUUIDs = [...new Set(notifications.map(n => n.actorUUID).filter(Boolean))];
+        const actors = await User.find({ quizServerUUID: { $in: actorUUIDs } })
+            .select('quizServerUUID name avatar')
+            .lean();
+        const actorMap = Object.fromEntries(actors.map(u => [u.quizServerUUID, u]));
+
+        // Normalize the response shape for the frontend
+        return notifications.map(n => ({
+            ...n,
+            actor: n.actorUUID ? (actorMap[n.actorUUID] || null) : null,
+            content: {
+                message: n.content?.body || n.content?.title || '',
+                postId:     n.content?.data?.postId     || n.targetId || null,
+                commentId:  n.content?.data?.commentId  || null,
+                groupId:    n.content?.data?.groupId    || null,
+            }
+        }));
     }
     
     async create(data) {

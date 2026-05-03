@@ -1,7 +1,8 @@
 const logger = require('../../utils/logger');
-const groupService = require('../../services/group.service'); 
+// Move groupService require inside the function to avoid circular dependency
 
 module.exports = (io, socket) => {
+  const groupService = require('../../services/group.service');
   const userUUID = socket.user.quizServerUUID;
 
   socket.on('group:join', async ({ groupId }) => {

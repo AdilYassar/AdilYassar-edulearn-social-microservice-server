@@ -18,11 +18,11 @@ class ConversationRepository {
     async create(data) {
         return await Conversation.create(data);
     }
-    
+
     async findById(id) {
         return await Conversation.findById(id);
     }
-    
+
     async update(id, data) {
         return await Conversation.findByIdAndUpdate(id, data, { new: true });
     }

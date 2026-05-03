@@ -109,13 +109,19 @@ class FeedService {
         const author = authors.find(a => a.quizServerUUID === postObj.authorUUID);
         
         // Fetch comments for this post
-        const comments = await commentRepository.findByPost(postObj._id, 0, 10); // Get top 10 comments
+        const comments = await commentRepository.findByPost(postObj._id, 0, 3); // Get top 3 preview comments
         const commentAuthorUUIDs = [...new Set(comments.map(c => c.authorUUID))];
         const commentAuthors = await userRepository.findMany(commentAuthorUUIDs);
+        
+        // Check if I liked these preview comments
+        const commentIds = comments.map(c => c._id);
+        const myCommentLikes = await likeRepository.findMany(userUUID, 'comment', commentIds);
+        const likedCommentsMap = new Set(myCommentLikes.map(l => l.targetId.toString()));
 
         const enrichedComments = comments.map(c => ({
             ...c.toObject ? c.toObject() : c,
-            author: commentAuthors.find(a => a.quizServerUUID === c.authorUUID) || { name: 'Unknown' }
+            author: commentAuthors.find(a => a.quizServerUUID === c.authorUUID) || { name: 'Unknown' },
+            isLiked: likedCommentsMap.has(c._id.toString())
         }));
 
         return {
@@ -123,7 +129,8 @@ class FeedService {
             author: author ? {
                 name: author.name,
                 avatar: author.avatar,
-                quizServerUUID: author.quizServerUUID
+                quizServerUUID: author.quizServerUUID,
+                learningStats: author.learningStats // <--- Added for "Social Learning" badges
             } : { name: 'Unknown', quizServerUUID: postObj.authorUUID },
             isLiked: likedMap.has(postObj._id.toString()),
             isSaved: savedMap.has(postObj._id.toString()),

@@ -2,12 +2,14 @@ const Joi = require('joi');
 
 const schemas = {
   createPost: Joi.object({
-    type: Joi.string().valid('general', 'progress', 'question', 'achievement', 'announcement').default('general'),
+    type: Joi.string().valid('general', 'progress', 'question', 'achievement', 'announcement', 'news').default('general'),
     contentType: Joi.string().valid('text', 'image', 'video', 'poll').optional(),
     visibility: Joi.string().valid('public', 'friends', 'course_mates').default('public'),
     courseId: Joi.string().optional(),
     content: Joi.object({
         text: Joi.string().allow(''),
+        url: Joi.string().uri().optional(),
+        source: Joi.object().optional(),
         media: Joi.array().items(Joi.object({
             mediaId: Joi.string().required(),
             url: Joi.string().required(),

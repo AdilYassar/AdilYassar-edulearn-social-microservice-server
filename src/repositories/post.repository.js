@@ -28,6 +28,10 @@ class PostRepository {
         return await Post.findOne({ _id: id, authorUUID });
     }
 
+    async findOne(query) {
+        return await Post.findOne(query);
+    }
+
     async delete(id) {
         // Soft delete usually done via update, but if hard delete needed:
         return await Post.findByIdAndDelete(id);

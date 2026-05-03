@@ -2,8 +2,8 @@ const feedService = require('../../../services/feed.service');
 
 exports.getFeed = async (req, res) => {
     try {
-        const { page = 1 } = req.query;
-        const feed = await feedService.getFeed(req.user.quizServerUUID, parseInt(page));
+        const { page = 1, type } = req.query;
+        const feed = await feedService.getFeed(req.user.quizServerUUID, parseInt(page), 20, type);
         res.status(200).json({ status: 'success', data: feed });
     } catch (error) {
         res.status(500).json({ status: 'error', message: error.message });

@@ -4,7 +4,7 @@ const postSchema = new mongoose.Schema({
   authorUUID: { type: String, required: true, index: true },
   
   // Post type and content
-  type: { type: String, enum: ['progress', 'question', 'achievement', 'general', 'announcement'], default: 'general' },
+  type: { type: String, enum: ['progress', 'question', 'achievement', 'general', 'announcement', 'news'], default: 'general' },
   contentType: { type: String, enum: ['text', 'image', 'video', 'poll'], default: 'text' }, // Helper for frontend
   content: {
     text: { type: String },

@@ -10,10 +10,18 @@ const logger = require('../utils/logger');
 class FeedService {
 
   async createPost(authorUUID, type, content, visibility = 'public', courseId) {
+    // 0. Handle News Idempotency: If this is news, check if it already exists by URL
+    if (type === 'news' && content.url) {
+        const existingNews = await postRepository.findOne({ "content.url": content.url, type: 'news' });
+        if (existingNews) return existingNews;
+    }
+
     // Determine contentType
     let contentType = 'text';
     if (content.media && content.media.length > 0) {
       contentType = content.media[0].type; // 'image' or 'video'
+    } else if (content.url && type === 'news') {
+      contentType = 'image'; // Default for news with image
     }
 
     const post = await postRepository.create({
@@ -62,7 +70,7 @@ class FeedService {
     return post;
   }
 
-  async getFeed(userUUID, page = 1, limit = 20) {
+  async getFeed(userUUID, page = 1, limit = 20, type = null) {
     const skip = (page - 1) * limit;
 
     // 1. Get Friend UUIDs for visibility
@@ -80,6 +88,12 @@ class FeedService {
         isDeleted: false,
         moderationStatus: 'approved'
     };
+
+    // Apply type filter if provided (e.g., 'news')
+    if (type) {
+        query.type = type;
+    }
+
     const posts = await postRepository.findFeed(query, skip, limit);
     
     // 3. Batch fetch all Authors and Interaction States

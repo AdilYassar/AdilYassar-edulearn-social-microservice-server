@@ -30,5 +30,37 @@ class UserRepository {
         const users = await User.find({ isActive: true }).select('quizServerUUID');
         return users.map(u => u.quizServerUUID);
     }
+    async upsertProfile(quizData) {
+        const {
+            uuid, name, photo, email, phone, age, bio, role,
+            learningStreak, totalQuizzesTaken, averageScore,
+            totalChaptersCompleted, enrollmentCount, lastLearningActivity
+        } = quizData;
+
+        const updateData = {
+            name,
+            avatar: photo,
+            email,
+            phone,
+            age,
+            bio,
+            userType: role?.toLowerCase() || 'student',
+            learningStats: {
+                streak: learningStreak || 0,
+                totalQuizzes: totalQuizzesTaken || 0,
+                averageScore: averageScore || 0,
+                totalChapters: totalChaptersCompleted || 0,
+                enrollmentCount: enrollmentCount || 0,
+                lastActivity: lastLearningActivity
+            },
+            lastSyncedAt: new Date()
+        };
+
+        return await User.findOneAndUpdate(
+            { quizServerUUID: uuid },
+            { $set: updateData },
+            { upsert: true, new: true }
+        );
+    }
 }
 module.exports = new UserRepository();

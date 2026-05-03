@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const deviceTokenRepository = require('../../../repositories/device-token.repository');
 const notificationRepository = require('../../../repositories/notification.repository');
+const userRepository = require('../../../repositories/user.repository');
 const logger = require('../../../utils/logger');
 
 /**
@@ -189,6 +190,34 @@ router.post('/device-tokens/mark-invalid', async (req, res) => {
         });
     } catch (error) {
         logger.error('Failed to mark tokens invalid:', error);
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+});
+
+/**
+ * POST /api/v1/internal/users/sync-profile
+ * 
+ * Quiz Server calls this to sync full user profile and learning stats
+ * Body: Full Student/Admin object from Quiz Server
+ */
+router.post('/users/sync-profile', async (req, res) => {
+    try {
+        const userData = req.body;
+        
+        if (!userData || !userData.uuid) {
+            return res.status(400).json({ error: 'User data with uuid is required' });
+        }
+
+        const user = await userRepository.upsertProfile(userData);
+
+        logger.info(`User profile synced from Quiz Server: ${user.quizServerUUID}`);
+        res.status(200).json({
+            status: 'success',
+            message: 'Profile synced successfully',
+            data: user
+        });
+    } catch (error) {
+        logger.error('Failed to sync user profile:', error);
         res.status(500).json({ status: 'error', message: error.message });
     }
 });

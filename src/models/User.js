@@ -7,9 +7,22 @@ const userSchema = new mongoose.Schema({
   // Cached display data (synced from Quiz Server)
   name: { type: String, index: 'text' },
   avatar: { type: String }, // Google Drive file ID
+  email: { type: String },
+  phone: { type: String },
+  age: { type: Number },
   
-  // Social-specific fields only
+  // Social-specific fields
   bio: { type: String, default: '' },
+
+  // Learning Performance Stats (Synced from Quiz Server)
+  learningStats: {
+    streak: { type: Number, default: 0 },
+    totalQuizzes: { type: Number, default: 0 },
+    averageScore: { type: Number, default: 0 },
+    totalChapters: { type: Number, default: 0 },
+    enrollmentCount: { type: Number, default: 0 },
+    lastActivity: { type: Date }
+  },
   
   socialSettings: {
     privacy: {

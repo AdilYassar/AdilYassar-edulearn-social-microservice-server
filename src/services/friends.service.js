@@ -1,5 +1,6 @@
 const friendshipRepository = require('../repositories/friendship.repository');
 const userRepository = require('../repositories/user.repository');
+const chatService = require('./chat.service');
 const firebaseNotificationService = require('./firebase-notification.service');
 const logger = require('../utils/logger');
 
@@ -83,6 +84,13 @@ class FriendService {
     friendship.status = 'accepted';
     friendship.respondedAt = new Date();
     await friendshipRepository.save(friendship);
+
+    // 0. Automatically create a direct conversation for the new friends
+    try {
+        await chatService.createDirectConversation(userUUID, requesterUUID);
+    } catch (e) {
+        logger.error(`Failed to create conversation for new friends: ${e.message}`);
+    }
 
     // Notify requester
     const acceptor = await userRepository.findByUUID(userUUID);

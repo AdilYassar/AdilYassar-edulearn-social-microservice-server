@@ -2,6 +2,7 @@ const conversationRepository = require('../repositories/conversation.repository'
 const messageRepository = require('../repositories/message.repository');
 const userRepository = require('../repositories/user.repository');
 const groupRepository = require('../repositories/group.repository');
+const postRepository = require('../repositories/post.repository');
 const logger = require('../utils/logger');
 
 class ChatService {
@@ -91,7 +92,12 @@ class ChatService {
         content,
     });
 
-    // Update conversation lastMessage
+    // 1. If it's a post, increment share count
+    if (type === 'post' && content.postId) {
+        await postRepository.updateStats(content.postId, { "stats.shares": 1 });
+    }
+
+    // 2. Update conversation lastMessage
     let previewText = '[Media]';
     if (type === 'text') {
         previewText = content.text.substring(0, 50);

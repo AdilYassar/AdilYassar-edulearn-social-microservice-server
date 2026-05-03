@@ -6,7 +6,10 @@ class MessageRepository {
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
-          .populate('content.postId');
+          .populate({
+            path: 'content.postId',
+            populate: { path: 'author' } // This gets the user who created the post
+          });
     }
     
     async create(data) {

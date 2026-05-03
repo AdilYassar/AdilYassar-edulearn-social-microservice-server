@@ -10,8 +10,8 @@ class CommentRepository {
         if (parentId) {
             query.parentId = parentId;
         } else {
-            // If fetching top-level, specifically exclude replies
-            query.parentId = { $exists: false };
+            // If fetching top-level, match both null and missing fields
+            query.parentId = null;
         }
         
         return await Comment.find(query)

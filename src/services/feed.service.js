@@ -47,8 +47,11 @@ class FeedService {
     if (type === 'announcement' || contentType === 'video' || type === 'news') {
         const title = type === 'announcement' ? 'New Announcement' : 
                       contentType === 'video' ? 'New Video shared' : 'New Update';
+        
+        const notifType = type === 'announcement' ? 'announcement' : 
+                         contentType === 'video' ? 'video_broadcast' : 'news_broadcast';
 
-        firebaseNotificationService.broadcast('post_new', {
+        firebaseNotificationService.broadcast(notifType, {
             title,
             body: `${author?.name || 'Someone'} shared: ${content.text?.substring(0, 50) || ''}...`
         }, postData);

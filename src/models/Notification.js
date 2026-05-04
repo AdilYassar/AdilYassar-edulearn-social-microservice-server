@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema({
   // Notification details
   type: { 
     type: String, 
-    enum: ['friend_request', 'friend_accepted', 'message', 'group_invite', 'post_like', 'post_comment', 'post_saved', 'post_new', 'comment_reply', 'comment_like', 'mention', 'achievement', 'system'], 
+    enum: ['friend_request', 'friend_accepted', 'message', 'group_invite', 'post_like', 'post_comment', 'post_saved', 'post_new', 'comment_reply', 'comment_like', 'mention', 'achievement', 'system', 'announcement', 'video_broadcast', 'news_broadcast'], 
     required: true 
   },
   actorUUID: { type: String },           // Who triggered this notification

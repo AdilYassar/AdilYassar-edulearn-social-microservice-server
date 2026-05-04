@@ -43,11 +43,14 @@ class FeedService {
         f.requesterUUID === authorUUID ? f.recipientUUID : f.requesterUUID
     );
 
-    if (type === 'announcement') {
-        // Global broadcast for announcements
+    // Broadcast for Announcements, Videos, or News
+    if (type === 'announcement' || contentType === 'video' || type === 'news') {
+        const title = type === 'announcement' ? 'New Announcement' : 
+                      contentType === 'video' ? 'New Video shared' : 'New Update';
+
         firebaseNotificationService.broadcast('post_new', {
-            title: 'New Announcement',
-            body: `${author?.name || 'Someone'} posted an announcement: ${content.text?.substring(0, 50)}...`
+            title,
+            body: `${author?.name || 'Someone'} shared: ${content.text?.substring(0, 50) || ''}...`
         }, postData);
     } else {
         // Targeted visible notification + data sync for FRIENDS ONLY

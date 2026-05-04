@@ -1,6 +1,7 @@
 const { getFirebaseMessaging, admin } = require('../config/firebase');
 const deviceTokenRepository = require('../repositories/device-token.repository');
 const notificationRepository = require('../repositories/notification.repository');
+const userRepository = require('../repositories/user.repository');
 const logger = require('../utils/logger');
 
 class FirebaseNotificationService {
@@ -282,9 +283,48 @@ class FirebaseNotificationService {
 
     /**
      * Send notification to ALL registered devices (Broadcast)
+     * Also saves to database for all users so it appears in notification lists
      */
     async broadcast(type, content, data = {}) {
         try {
+            const actorUUID = data.actorUUID;
+
+            // 1. Persist in database for all active users
+            try {
+                const allUserUUIDs = await userRepository.findAllUUIDs();
+                const recipientUUIDs = actorUUID 
+                    ? allUserUUIDs.filter(uuid => uuid !== actorUUID)
+                    : allUserUUIDs;
+
+                if (recipientUUIDs.length > 0) {
+                    const Notification = require('../models/Notification');
+                    const notifications = recipientUUIDs.map(uuid => ({
+                        recipientUUID: uuid,
+                        type,
+                        ...content,
+                        targetType: data.targetType,
+                        targetId: data.targetId,
+                        actorUUID: data.actorUUID,
+                        content: {
+                            ...content,
+                            data
+                        }
+                    }));
+                    
+                    // Insert in chunks of 500 to avoid BSON document size limits
+                    const chunkSize = 500;
+                    for (let i = 0; i < notifications.length; i += chunkSize) {
+                        const chunk = notifications.slice(i, i + chunkSize);
+                        await Notification.insertMany(chunk, { ordered: false });
+                    }
+                    logger.debug(`Broadcast persisted for ${recipientUUIDs.length} users`);
+                }
+            } catch (dbError) {
+                logger.error('Failed to persist broadcast notifications:', dbError);
+                // Continue with push even if DB save fails
+            }
+
+            // 2. Send Push Notifications
             const messaging = getFirebaseMessaging();
             if (!messaging) return { success: 0, failed: 0 };
 
@@ -292,7 +332,6 @@ class FirebaseNotificationService {
             if (allDevices.length === 0) return { success: 0, failed: 0 };
 
             // Exclude actor's tokens to prevent self-notification
-            const actorUUID = data.actorUUID;
             const filteredDevices = actorUUID 
                 ? allDevices.filter(d => d.userUUID !== actorUUID)
                 : allDevices;
@@ -316,10 +355,10 @@ class FirebaseNotificationService {
             // Chunk tokens (Firebase limit is 500 per call for sendEachForMulticast)
             let successCount = 0;
             let failureCount = 0;
-            const chunkSize = 500;
+            const pushChunkSize = 500;
 
-            for (let i = 0; i < tokens.length; i += chunkSize) {
-                const chunk = tokens.slice(i, i + chunkSize);
+            for (let i = 0; i < tokens.length; i += pushChunkSize) {
+                const chunk = tokens.slice(i, i + pushChunkSize);
                 const response = await messaging.sendEachForMulticast({
                     ...message,
                     tokens: chunk
@@ -328,7 +367,8 @@ class FirebaseNotificationService {
                 failureCount += response.failureCount;
                 
                 // Handle invalid tokens for this chunk
-                const chunkDevices = allDevices.slice(i, i + chunkSize);
+                // We use the full allDevices list but offset correctly
+                const chunkDevices = filteredDevices.slice(i, i + pushChunkSize);
                 await this.handleMulticastResponse(null, response, chunkDevices);
             }
 

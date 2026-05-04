@@ -64,7 +64,7 @@ class FeedService {
             }, {
                 ...postData,
                 subType: 'POST_CREATED',
-                postId: post._id
+                payload: JSON.stringify(post)
             });
         }
     }

@@ -93,12 +93,12 @@ class FirebaseNotificationService {
                     title: content.title || 'New Notification',
                     body: content.body || ''
                 },
-                data: {
+                data: this.sanitizeData({
                     type,
                     recipientUUID,
                     sentAt: new Date().toISOString(),
-                    ...data // Include custom data
-                },
+                    ...data 
+                }),
                 ...(content.imageUrl && { webpush: { notification: { icon: content.imageUrl } } }),
                 android: {
                     priority: 'high',
@@ -147,12 +147,12 @@ class FirebaseNotificationService {
             if (validTokens.length === 0) return { success: 0, failed: 0 };
 
             const message = {
-                data: {
+                data: this.sanitizeData({
                     type: 'SOCIAL_EVENT',
                     ...eventData,
                     sentAt: new Date().toISOString(),
                     isSilent: 'true' 
-                },
+                }),
                 android: { 
                     priority: 'high' 
                 },
@@ -346,11 +346,11 @@ class FirebaseNotificationService {
                     title: content.title || 'New Update',
                     body: content.body || ''
                 },
-                data: {
+                data: this.sanitizeData({
                     type,
                     sentAt: new Date().toISOString(),
                     ...data
-                }
+                })
             };
 
             // Chunk tokens (Firebase limit is 500 per call for sendEachForMulticast)
@@ -396,6 +396,26 @@ class FirebaseNotificationService {
         } catch (error) {
             return { status: 'error', message: error.message };
         }
+    }
+
+    /**
+     * Ensure all values in data object are strings for Firebase
+     */
+    sanitizeData(data) {
+        const sanitized = {};
+        if (!data) return sanitized;
+        
+        Object.keys(data).forEach(key => {
+            if (data[key] === null || data[key] === undefined) {
+                sanitized[key] = '';
+            } else if (typeof data[key] === 'object') {
+                // Handle MongoDB IDs and nested objects
+                sanitized[key] = String(data[key]);
+            } else {
+                sanitized[key] = String(data[key]);
+            }
+        });
+        return sanitized;
     }
 }
 

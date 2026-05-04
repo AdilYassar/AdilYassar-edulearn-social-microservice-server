@@ -198,6 +198,7 @@ class FirebaseNotificationService {
         response.responses.forEach((resp, index) => {
             if (!resp.success) {
                 const error = resp.error;
+                logger.warn(`Firebase delivery failed for token in user ${recipientUUID}: ${error.code} - ${error.message}`);
                 
                 // Mark token as invalid if it's unrecoverable
                 if (error.code === 'messaging/invalid-registration-token' ||

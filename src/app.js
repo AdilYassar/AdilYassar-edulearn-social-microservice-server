@@ -5,6 +5,8 @@ const rateLimit = require('express-rate-limit');
 const config = require('./config');
 const routes = require('./api/v1/routes');
 const logger = require('./utils/logger'); // Assuming you want to use the logger here too
+const { authenticate } = require('./api/v1/middlewares/auth.middleware');
+const usersController = require('./api/v1/controllers/users.controller');
 const errorMiddleware = require('./api/v1/middlewares/error.middleware');
 
 const app = express();
@@ -42,6 +44,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.get('/api/user/social-summary', authenticate, usersController.getSocialSummary);
 app.use('/api/v1', routes);
 
 // Error Handling (Must be last)

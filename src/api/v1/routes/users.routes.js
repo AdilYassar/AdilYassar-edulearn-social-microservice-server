@@ -9,6 +9,7 @@ router.get('/me', usersController.getMe);
 router.patch('/me', usersController.updateMe);
 router.get('/discover', usersController.discover);
 router.get('/search', usersController.search);
+router.get('/social-summary', usersController.getSocialSummary);
 router.get('/:uuid', usersController.getUser);
 
 module.exports = router;

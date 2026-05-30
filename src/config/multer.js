@@ -21,7 +21,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
     const allowed = [
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
         'video/mp4', 'video/quicktime', 'application/pdf', 
         'audio/mpeg', 'audio/mp3', 'audio/wav', 'text/plain',
         'application/octet-stream' // Fallback for some browsers
